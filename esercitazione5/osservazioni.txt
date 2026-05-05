@@ -1,0 +1,131 @@
+
+--------------------------------------------------------------------------------
+CONFRONTO TRA GLI ALGORITMI QUADRATICI
+--------------------------------------------------------------------------------
+
+Tra i tre algoritmi quadratici (bubble sort, insertion sort, selection sort),
+INSERTION SORT e' il piu' veloce in entrambe le modalita' di
+compilazione e per ogni dimensione testata.
+
+A titolo di esempio, in Release a n = 100:
+  - bubble sort     ~ 1,16e-05 s   (il piu' lento)
+  - selection sort  ~ 6,51e-06 s
+  - insertion sort  ~ 2,03e-06 s   (il piu' veloce)
+
+In Debug a n = 100:
+  - bubble sort     ~ 2,98e-05 s
+  - selection sort  ~ 1,68e-05 s
+  - insertion sort  ~ 7,82e-06 s   (il piu' veloce)
+
+Il vantaggio di insertion sort e' coerente con la sua struttura: a parita'
+di complessita' asintotica O(n^2), il numero di confronti e scambi
+effettivamente eseguiti e' sensibilmente minore rispetto a bubble sort
+(che fa n*(n-1)/2 confronti anche su input gia' ordinato) e a selection
+sort (che fa sempre n*(n-1)/2 confronti per cercare il minimo). 
+
+CONCLUSIONE: tra gli algoritmi quadratici, insertion sort e' la scelta
+migliore. Per questa ragione e' questo che viene usato come "fallback" 
+nel quicksort ibrido.
+
+
+--------------------------------------------------------------------------------
+SOGLIA TRA ALGORITMI QUADRATICI E LOGARITMICI
+--------------------------------------------------------------------------------
+
+La soglia n0 e' stata cercata direttamente nel programma measure_sort2.cpp:
+per ogni n nel ciclo si calcola il piu' veloce tra i quadratici
+(min(t_bubble, t_insertion, t_selection)) e il piu' veloce tra i logaritmici
+(min(t_merge, t_quick)); n0 viene fissato al primo n in cui il logaritmico
+diventa piu' rapido del quadratico.
+
+Risultati ottenuti:
+
+  - In modalita' DEBUG la soglia ricade nel range [5, 100] richiesto dal
+    PDF e vale n0 ~ 35-55 (il valore preciso oscilla leggermente da una
+    esecuzione all'altra a causa del rumore di misura: il tempo di insertion
+    sort e di quicksort a quelle dimensioni e' dell'ordine di pochi
+    microsecondi).
+
+  - In modalita' RELEASE la soglia NON cade nel range [5, 100]: insertion
+    sort resta sempre piu' veloce di mergesort e quicksort fino a n = 100
+    (a n = 100, insertion ~ 2,03e-06 s, quicksort ~ 2,89e-06 s, mergesort
+    ~ 6,31e-06 s). 
+
+La grandezza della soglia, in altre parole, NON e' una proprieta' intrinseca
+degli algoritmi: dipende dall'implementazione e dal livello di ottimizzazione.
+
+
+--------------------------------------------------------------------------------
+QUICKSORT IBRIDO
+--------------------------------------------------------------------------------
+
+E' stata implementata una versione modificata di quicksort
+(quicksort_hybrid in sorts.hpp) che, sui sottointervalli di dimensione
+<= threshold, smette di chiamarsi ricorsivamente e ordina con insertion
+sort. Sopra soglia prosegue con la procedura standard partition + due 
+chiamate ricorsive.
+
+Soglia scelta: threshold = 50, valore di default del parametro nel template.
+Questa scelta e' un buon compromesso tra le due modalita' di compilazione.
+
+Risultati: dai dati misurati, il quicksort ibrido e' SEMPRE piu' veloce
+del quicksort puro per ogni n testato, in entrambe le configurazioni.
+Esempi a n = 100:
+  - Release: quicksort = 2,89e-06 s,  hybrid = 2,83e-06 s  
+  - Debug:   quicksort = 5,58e-06 s,  hybrid = 4,59e-06 s  
+
+In Debug il guadagno e' molto piu' marcato perche' ogni chiamata di funzione
+costa di piu' senza ottimizzazioni: evitare la ricorsione sulle code piccole
+ha un effetto diretto e visibile.
+
+
+--------------------------------------------------------------------------------
+CONFRONTO CON std::sort
+--------------------------------------------------------------------------------
+
+Confronto a n = 100:
+  - Release: std::sort = 2,49e-06 s,  hybrid = 2,83e-06 s,  quick = 2,89e-06 s
+  - Debug:   std::sort = 7,07e-06 s,  hybrid = 4,59e-06 s,  quick = 5,58e-06 s
+
+Osservazioni:
+  - In Release, std::sort risulta piu' veloce sia del nostro quicksort sia del 
+    quicksort ibrido. La differenza e' piccola.
+  - In Debug invece il quicksort ibrido batte std::sort. 
+
+
+--------------------------------------------------------------------------------
+EFFETTO DELLA MODALITA' DI COMPILAZIONE
+--------------------------------------------------------------------------------
+
+L'esercitazione e' stata svolta sia in Debug sia in Release. La differenza
+di tempi e' importante.
+
+A n = 100 i tempi (in secondi) variano cosi' tra le due configurazioni:
+
+  Algoritmo        Debug           Release        Rapporto Debug/Release
+  bubble_sort      2,98e-05        1,16e-05       ~ 2,6
+  insertion_sort   7,82e-06        2,03e-06       ~ 3,9
+  selection_sort   1,68e-05        6,51e-06       ~ 2,6
+  mergesort        1,81e-05        6,31e-06       ~ 2,9
+  quicksort        5,58e-06        2,89e-06       ~ 1,9
+  quicksort_hybrid 4,59e-06        2,83e-06       ~ 1,6
+  std::sort        7,07e-06        2,49e-06       ~ 2,8
+
+Le ottimizzazioni del compilatore portano un fattore 2-4 di riduzione del
+tempo. Il guadagno NON e' uniforme tra gli algoritmi: insertion sort ne
+beneficia di piu', mentre quicksort guadagna di meno. 
+
+--------------------------------------------------------------------------------
+CONCLUSIONI
+--------------------------------------------------------------------------------
+
+  - Tra i tre algoritmi quadratici, INSERTION SORT e' nettamente il piu'
+    veloce ed e' la scelta naturale per il fallback del quicksort ibrido.
+  - Esiste una soglia n0 sotto la quale gli algoritmi quadratici sono piu'
+    veloci dei logaritmici. Il suo valore dipende fortemente dal livello
+    di ottimizzazione del compilatore: ~ 50 in Debug, > 200 in Release.
+  - Il quicksort ibrido implementato (con insertion sort sotto la
+    soglia threshold = 50) e' sempre piu' veloce del quicksort nei
+    range testati, con guadagno marcato in Debug e minore ma comunque 
+    presente in Release.
+
