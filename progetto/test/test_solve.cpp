@@ -1,0 +1,130 @@
+#include "netlist_struct.hpp"
+#include "costruzione_grafo.hpp"
+#include "cicli_DFS.hpp"
+#include "de_pina.hpp"
+#include "solve.hpp"
+
+#include <map>
+#include <cstdlib>
+#include <iostream>
+#include <cmath>
+
+/* Il test
+    1) Legge la netlist da 'prova.txt
+    2) Costruisce il grafo
+    3) Calcola i cicli
+    4) Risolve il sistema
+    5) Verifica che le tensioni e correnti coincidano con valori attesi 
+    
+     R1: V =  8 volts, I =  2.0 amps
+     R2: V = 22 volts, I =  2.2 amps
+     R3: V = -6 volts, I = -0.2 amps
+     R4: V = -28 volts, I = -2.8 amps
+     R5: V = 12 volts, I =  3.0 amps
+*/
+
+static const std::string NETLIST = "prova.txt";
+
+// Leggo netlist e dichiaro le variabili globali di grafo + mappa; inizializzo
+// poi in main()
+Output dati;
+std::map<edge<int>, edge_data> edge_data_map;
+
+graph<int> G;
+static const double tol = 1e-7;
+
+struct Riferimento {
+    double tensione;
+    double corrente;
+};
+
+static const std::map<std::string, Riferimento> RIFERIMENTO = {
+    {"R1", { 8.0,  2.0}},
+    {"R2", {22.0,  2.2}},
+    {"R3", {-6.0, -0.2}},
+    {"R4", {-28.0,-2.8}},
+    {"R5", {12.0,  3.0}},
+};
+
+// Confronta il risultato del solver con i valori di riferimento, indicizzando
+// per nome del resistore
+static bool risultati_corretti(const RisultatoCircuit& r, const std::string& nome_test)
+{
+    if (r.nomi_resistori.size() != RIFERIMENTO.size()) {
+        std::cerr << "ERRORE: " << nome_test << ": attesi " << RIFERIMENTO.size()
+                   << " resistori, trovati " << r.nomi_resistori.size() << "\n";
+        return false;
+    }
+
+    bool ok = true;
+    for (std::size_t i = 0; i < r.nomi_resistori.size(); i++) {
+        const std::string& nome = r.nomi_resistori[i];
+        auto it = RIFERIMENTO.find(nome);
+        if (it == RIFERIMENTO.end()) {
+            std::cerr << "ERRORE: " << nome_test << ": resistore sconosciuto \"" << nome << "\"\n";
+            ok = false;
+            continue;
+        }
+        if (std::abs(r.tensioni[i] - it->second.tensione) > tol) {
+            std::cerr << "ERRORE: " << nome_test << ": " << nome
+                       << ": V = " << r.tensioni[i] << ", atteso " << it->second.tensione << "\n";
+            ok = false;
+        }
+        if (std::abs(r.correnti[i] - it->second.corrente) > tol) {
+            std::cerr << "ERRORE: " << nome_test << ": " << nome
+                       << ": I = " << r.correnti[i] << ", atteso " << it->second.corrente << "\n";
+            ok = false;
+        }
+    }
+    return ok;
+}
+
+// 1) Risoluzione con cicli fondamentali (DFS + coalbero)
+static int test_solve_dfs()
+{
+    auto cicli = cicli_DFS(G);
+    RisultatoCircuit r = circuit(G, edge_data_map, cicli);
+
+    if (!risultati_corretti(r, "test_solve_dfs")) {
+        return EXIT_FAILURE;
+    }
+    std::cout << "[OK] test_solve_dfs\n";
+    return EXIT_SUCCESS;
+}
+
+// 2) Risoluzione con cicli minimi (De Pina)
+static int test_solve_depina()
+{
+    auto cicli = De_Pina(G);
+    RisultatoCircuit r = circuit(G, edge_data_map, cicli);
+
+    if (!risultati_corretti(r, "test_solve_depina")) {
+        return EXIT_FAILURE;
+    }
+    std::cout << "[OK] test_solve_depina\n";
+    return EXIT_SUCCESS;
+}
+
+int main()
+{
+    // Se il file non si trova si esce subito, senza crashare dentro le funzioni di test
+    dati = parse_netlist(NETLIST);
+    if (!dati.ok) {
+        std::cerr << "ERRORE: impossibile leggere la netlist\n";
+        return EXIT_FAILURE;
+    }
+
+    G = costruisci_grafo(dati, edge_data_map);
+
+    int falliti = 0;
+    falliti += test_solve_dfs()    == EXIT_SUCCESS ? 0 : 1;
+    falliti += test_solve_depina() == EXIT_SUCCESS ? 0 : 1;
+
+    if (falliti == 0) {
+        std::cout << "\nTutti i test del solver sono passati.\n";
+        return EXIT_SUCCESS;
+    } else {
+        std::cerr << "\n" << falliti << " test falliti.\n";
+        return EXIT_FAILURE;
+    }
+}
